@@ -2,7 +2,6 @@ package common
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -61,58 +60,36 @@ func (c *Client) createClientSocket() error {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 
+	err := c.createClientSocket()
+	if err != nil {
+		return
+	}
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		select {
-		case <-c.stop:
-			log.Infof("action: loop_terminated | result: success | client_id: %v", c.config.ID)
-			return
-		case sig := <-sigs:
-			log.Infof("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
-			c.StopClient()
-			return
-		default:
-			// Create the connection to the server in every loop iteration
-			err := c.createClientSocket()
-			if err != nil {
-				return
-			}
-
-			// Send the message
-			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
-				c.conn,
-				"[CLIENT %v] Message N°%v\n",
-				c.config.ID,
-				msgID,
-			)
-
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-			c.conn.Close()
-
-			if err != nil {
-				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-					c.config.ID,
-					err,
-				)
-				return
-			}
-
-			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-				c.config.ID,
-				msg,
-			)
-
-			// Wait a time between sending one message and the next one
-			time.Sleep(c.config.LoopPeriod)
-		}
+	bet := BetFromEnv(c.config.ID)
+	if Send(c, bet) != nil {
+		return // error sending bet
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	c.conn.Close()
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return
+	}
+
+	log.Infof("%v",
+		msg,
+	)
+
 }
 
 // Gracefully shut down the client

@@ -1,4 +1,4 @@
-version: '3.8' 
+version: '3.8'
 
 services:
   server:
@@ -12,6 +12,7 @@ services:
       - ./server/config.ini:/config.ini
     networks:
       - testing_net
+  
   client1:
     container_name: client1
     image: client:latest
@@ -19,12 +20,18 @@ services:
     environment:
       - CLI_ID=1
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Santiago Lionel
+      - APELLIDO=Lorca
+      - DOCUMENTO=30904465
+      - NACIMIENTO=1999-03-17
+      - NUMERO=7574
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
       - testing_net
     depends_on:
       - server
+  
   client2:
     container_name: client2
     image: client:latest
@@ -32,12 +39,18 @@ services:
     environment:
       - CLI_ID=2
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Mariana
+      - APELLIDO=Gomez
+      - DOCUMENTO=32765432
+      - NACIMIENTO=1992-11-21
+      - NUMERO=1289
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
       - testing_net
     depends_on:
       - server
+
   client3:
     container_name: client3
     image: client:latest
@@ -45,12 +58,18 @@ services:
     environment:
       - CLI_ID=3
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Jorge
+      - APELLIDO=Rodriguez
+      - DOCUMENTO=28567453
+      - NACIMIENTO=1987-05-13
+      - NUMERO=4503
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
       - testing_net
     depends_on:
       - server
+
   client4:
     container_name: client4
     image: client:latest
@@ -58,12 +77,18 @@ services:
     environment:
       - CLI_ID=4
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Luciana
+      - APELLIDO=Vega
+      - DOCUMENTO=30123456
+      - NACIMIENTO=1994-08-30
+      - NUMERO=6785
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
       - testing_net
     depends_on:
       - server
+
   client5:
     container_name: client5
     image: client:latest
@@ -71,6 +96,11 @@ services:
     environment:
       - CLI_ID=5
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Daniel
+      - APELLIDO=Hernandez
+      - DOCUMENTO=31547896
+      - NACIMIENTO=1985-02-17
+      - NUMERO=3321
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
