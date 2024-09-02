@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+const (
+	MessageTypeWinners   = "WINNERS"
+	MessageTypeNoWinn    = "NOWINN"
+	MessageTypeBetData   = "BETDATA"
+	MessageTypeReqWinner = "REQWINN"
+	LengthBytes          = 4
+)
+
 type Bet struct {
 	Agency    string
 	FirstName string
@@ -90,7 +98,7 @@ func SendChunks(c *Client, data string) error {
 	conn := c.conn
 	dataChunks := splitIntoChunks(data, maxBatchSize, c.config.ID)
 
-	betDataMsg := "BETDATA"
+	betDataMsg := MessageTypeBetData
 	betDataBytes := []byte(betDataMsg)
 	betDataSize := int32(len(betDataBytes))
 
@@ -204,7 +212,7 @@ func requestWinner(c *Client) (bool, error) {
 	}
 	defer c.conn.Close()
 
-	reqWinMsg := "REQWINN"
+	reqWinMsg := MessageTypeReqWinner
 	reqWinBytes := []byte(reqWinMsg)
 	reqWinSize := int32(len(reqWinBytes))
 
@@ -236,7 +244,7 @@ func requestWinner(c *Client) (bool, error) {
 		return false, fmt.Errorf("failed to send ID: %w", err)
 	}
 
-	lengthBytes, err := recvAll(c.conn, 4)
+	lengthBytes, err := recvAll(c.conn, LengthBytes)
 	if err != nil {
 		return false, fmt.Errorf("failed to read response length: %w", err)
 	}
@@ -252,12 +260,12 @@ func requestWinner(c *Client) (bool, error) {
 	}
 
 	responseMessage := string(responseBytes)
-	if responseMessage == "WINNERS" {
+	if responseMessage == MessageTypeWinners {
 		if err := handleWinnerData(c.conn); err != nil {
 			return false, fmt.Errorf("failed to handle winner data: %w", err)
 		}
 		return true, nil
-	} else if responseMessage == "NOWINN" {
+	} else if responseMessage == MessageTypeNoWinn {
 		return false, nil
 	} else {
 		return false, fmt.Errorf("unexpected response: %s", responseMessage)
@@ -266,7 +274,7 @@ func requestWinner(c *Client) (bool, error) {
 
 func handleWinnerData(conn net.Conn) error {
 
-	lengthBytes, err := recvAll(conn, 4)
+	lengthBytes, err := recvAll(conn, LengthBytes)
 	if err != nil {
 		return fmt.Errorf("failed to read winner data length: %w", err)
 	}

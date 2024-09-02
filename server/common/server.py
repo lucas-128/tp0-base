@@ -4,6 +4,8 @@ import signal
 import threading
 import sys
 from .lottery import recv_batches,recv,recv_intro_msg,handle_winner_request
+from .constants import MESSAGE_TYPE_BETDATA, MESSAGE_TYPE_REQWIN,NUM_AGENCIES
+
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -54,12 +56,12 @@ class Server:
         try:
             addr = client_sock.getpeername()
             msg_type = recv_intro_msg(client_sock)
-            if msg_type == "BETDATA":
+            if msg_type == MESSAGE_TYPE_BETDATA:
                 recv_batches(client_sock)
                 self._handled_agencies += 1
-                if (self._handled_agencies == 5):
+                if (self._handled_agencies == NUM_AGENCIES):
                     logging.info(f'action: sorteo | result: success')
-            elif msg_type == "REQWINN":
+            elif msg_type == MESSAGE_TYPE_REQWIN:
                 handle_winner_request(client_sock,self._handled_agencies)
             else:
                 logging.info(f'Unknown message received')

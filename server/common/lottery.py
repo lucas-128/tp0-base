@@ -4,6 +4,8 @@ import logging
 import json
 from typing import List, Optional
 from .utils import Bet, store_bets,load_bets,has_won
+from .constants import LENGTH_BYTES, MESSAGE_TYPE_NOWINN, MESSAGE_TYPE_WINNERS,NUM_AGENCIES
+
 
 def recv_all(sock, length):
     data = bytearray()
@@ -14,7 +16,7 @@ def recv_all(sock, length):
 
 
 def recv_intro_msg(client_sock):
-    size_data = recv_all(client_sock, 4)
+    size_data = recv_all(client_sock, LENGTH_BYTES)
     data_size = int.from_bytes(size_data, byteorder='big')
     message_data = recv_all(client_sock, data_size)    
     message = message_data.decode('utf-8')
@@ -23,22 +25,22 @@ def recv_intro_msg(client_sock):
 def send_message_len(client_sock, msg: str):
     msg_bytes = msg.encode('utf-8')    
     size = len(msg_bytes)
-    size_bytes = size.to_bytes(4, byteorder='big')
+    size_bytes = size.to_bytes(LENGTH_BYTES, byteorder='big')
     send_all(client_sock, size_bytes)
     send_all(client_sock, msg_bytes)  
 
 def handle_winner_request(client_sock, handled_agencies):
     
-    size_bytes = recv_all(client_sock, 4)
+    size_bytes = recv_all(client_sock, LENGTH_BYTES)
     size = int.from_bytes(size_bytes, byteorder='big')   
     agency_id_bytes = recv_all(client_sock, size)
     agency_id = agency_id_bytes.decode('utf-8')
     
-    if handled_agencies < 5:
-        msg = "NOWINN"
+    if handled_agencies < NUM_AGENCIES:
+        msg = MESSAGE_TYPE_NOWINN
         send_message_len(client_sock,msg)  
     else:
-        msg = "WINNERS"
+        msg = MESSAGE_TYPE_WINNERS
         send_message_len(client_sock,msg)
         winners_docs = get_winners(agency_id)
         send_message_len(client_sock, winners_docs)
@@ -69,7 +71,7 @@ def send_all(conn: socket.socket, data: bytes):
 def recv_batches(client_sock):
     
     while True:
-        size_data = recv_all(client_sock, 4)
+        size_data = recv_all(client_sock, LENGTH_BYTES)
         data_size = int.from_bytes(size_data, byteorder='big')
     
         if not data_size:
@@ -115,7 +117,7 @@ def parse_bets(bet_data: str) -> Optional[List[Bet]]:
          
 def recv(client_sock):
     
-    size_data = recv_all(client_sock, 4)
+    size_data = recv_all(client_sock, LENGTH_BYTES)
     data_size = int.from_bytes(size_data, byteorder='big')
     bet_data = recv_all(client_sock, data_size).decode('utf-8')
     
