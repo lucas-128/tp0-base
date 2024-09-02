@@ -46,6 +46,7 @@ if __name__ == "__main__":
         print("Uso: python3 mi-generador.py <output_file_name> <number_of_clients>")
         sys.exit(1)
 
+    print("gen2")
     output_file = sys.argv[1]
     num_clients = int(sys.argv[2])
 
