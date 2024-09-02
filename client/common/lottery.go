@@ -90,11 +90,27 @@ func SendChunks(c *Client, data string) error {
 	conn := c.conn
 	dataChunks := splitIntoChunks(data, maxBatchSize, c.config.ID)
 
+	betDataMsg := "BETDATA"
+	betDataBytes := []byte(betDataMsg)
+	betDataSize := int32(len(betDataBytes))
+
+	var buffer bytes.Buffer
+	if err := binary.Write(&buffer, binary.BigEndian, betDataSize); err != nil {
+		return fmt.Errorf("failed to write BETDATA message size: %w", err)
+	}
+	if err := sendAll(conn, buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to send BETDATA message size: %w", err)
+	}
+
+	if err := sendAll(conn, betDataBytes); err != nil {
+		return fmt.Errorf("failed to send BETDATA message: %w", err)
+	}
+
 	for _, chunk := range dataChunks {
 
 		chunkBytes := []byte(chunk)
 		dataSize := len(chunkBytes)
-		var buffer bytes.Buffer
+		buffer.Reset()
 
 		if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
 			return fmt.Errorf("failed to write data size: %w", err)
@@ -110,19 +126,14 @@ func SendChunks(c *Client, data string) error {
 
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		if err != nil {
-			log.Errorf("%v",
-				err,
-			)
+			log.Errorf("%v", err)
 		} else {
-			log.Infof("%v",
-				msg,
-			)
+			log.Infof("%v", msg)
 		}
-
 	}
 
 	// Send data size 0 so that the server knows all chunks were sent.
-	var buffer bytes.Buffer
+	buffer.Reset()
 	if err := binary.Write(&buffer, binary.BigEndian, int32(0)); err != nil {
 		return fmt.Errorf("failed to write: %w", err)
 	}
@@ -170,4 +181,110 @@ func readAgencyBets(id string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func recvAll(conn net.Conn, length int) ([]byte, error) {
+	data := make([]byte, 0, length)
+	buf := make([]byte, length)
+
+	for len(data) < length {
+		n, err := conn.Read(buf[len(data):])
+		if err != nil {
+			return nil, fmt.Errorf("failed to receive data: %w", err)
+		}
+		data = append(data, buf[:n]...)
+	}
+	return data, nil
+}
+
+func requestWinner(c *Client) (bool, error) {
+
+	if err := c.createClientSocket(); err != nil {
+		return false, fmt.Errorf("failed to create client socket: %w", err)
+	}
+	defer c.conn.Close()
+
+	reqWinMsg := "REQWINN"
+	reqWinBytes := []byte(reqWinMsg)
+	reqWinSize := int32(len(reqWinBytes))
+
+	var buffer bytes.Buffer
+	if err := binary.Write(&buffer, binary.BigEndian, reqWinSize); err != nil {
+		return false, fmt.Errorf("failed to write REQWINN message size: %w", err)
+	}
+	if err := sendAll(c.conn, buffer.Bytes()); err != nil {
+		return false, fmt.Errorf("failed to send REQWINN message size: %w", err)
+	}
+
+	if err := sendAll(c.conn, reqWinBytes); err != nil {
+		return false, fmt.Errorf("failed to send REQWINN message: %w", err)
+	}
+
+	id := c.config.ID
+	idBytes := []byte(id)
+	idSize := int32(len(idBytes))
+
+	buffer.Reset()
+	if err := binary.Write(&buffer, binary.BigEndian, idSize); err != nil {
+		return false, fmt.Errorf("failed to write ID size: %w", err)
+	}
+	if err := sendAll(c.conn, buffer.Bytes()); err != nil {
+		return false, fmt.Errorf("failed to send ID size: %w", err)
+	}
+
+	if err := sendAll(c.conn, idBytes); err != nil {
+		return false, fmt.Errorf("failed to send ID: %w", err)
+	}
+
+	lengthBytes, err := recvAll(c.conn, 4)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response length: %w", err)
+	}
+
+	var responseSize int32
+	if err := binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &responseSize); err != nil {
+		return false, fmt.Errorf("failed to parse response size: %w", err)
+	}
+
+	responseBytes, err := recvAll(c.conn, int(responseSize))
+	if err != nil {
+		return false, fmt.Errorf("failed to read response data: %w", err)
+	}
+
+	responseMessage := string(responseBytes)
+	if responseMessage == "WINNERS" {
+		if err := handleWinnerData(c.conn); err != nil {
+			return false, fmt.Errorf("failed to handle winner data: %w", err)
+		}
+		return true, nil
+	} else if responseMessage == "NOWINN" {
+		return false, nil
+	} else {
+		return false, fmt.Errorf("unexpected response: %s", responseMessage)
+	}
+}
+
+func handleWinnerData(conn net.Conn) error {
+
+	lengthBytes, err := recvAll(conn, 4)
+	if err != nil {
+		return fmt.Errorf("failed to read winner data length: %w", err)
+	}
+
+	var dataSize int32
+	if err := binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize); err != nil {
+		return fmt.Errorf("failed to parse winner data size: %w", err)
+	}
+
+	dataBytes, err := recvAll(conn, int(dataSize))
+	if err != nil {
+		return fmt.Errorf("failed to read winner data: %w", err)
+	}
+
+	documents := strings.Split(string(dataBytes), ",")
+	documentCount := len(documents)
+
+	logMessage := fmt.Sprintf("action: consulta_ganadores | result: success | cant_ganadores: %d", documentCount)
+	log.Infof("%v", logMessage)
+	return nil
 }

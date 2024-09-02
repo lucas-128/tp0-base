@@ -3,7 +3,7 @@ import logging
 import signal
 import threading
 import sys
-from .lottery import recv_batches,recv
+from .lottery import recv_batches,recv,recv_intro_msg,handle_winner_request
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -12,6 +12,9 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._shutdown_flag = threading.Event()
+        self._handled_agencies = 0
+        
+        
 
         # Signal handlers 
         signal.signal(signal.SIGTERM, self.__handle_shutdown_signal)
@@ -50,8 +53,16 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()
-            recv_batches(client_sock)
-                        
+            msg_type = recv_intro_msg(client_sock)
+            if msg_type == "BETDATA":
+                recv_batches(client_sock)
+                self._handled_agencies += 1
+                if (self._handled_agencies == 5):
+                    logging.info(f'action: sorteo | result: success')
+            elif msg_type == "REQWINN":
+                handle_winner_request(client_sock,self._handled_agencies)
+            else:
+                logging.info(f'Unknown message received')
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
@@ -71,3 +82,4 @@ class Server:
         c, addr = self._server_socket.accept()
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
+

@@ -14,6 +14,8 @@ import (
 
 var log = logging.MustGetLogger("log")
 
+const retryInterval = 5 * time.Second
+
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
 	ServerAddress string
@@ -78,7 +80,14 @@ func (c *Client) StartClientLoop() {
 	}
 
 	SendChunks(c, data)
-
+	for {
+		success, _ := requestWinner(c)
+		if !success {
+			time.Sleep(retryInterval)
+			continue
+		}
+		break
+	}
 }
 
 // Gracefully shut down the client
