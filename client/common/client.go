@@ -1,7 +1,7 @@
 package common
 
 import (
-	"bufio"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -16,10 +16,11 @@ var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
 	ServerAddress string
+	ID            string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	MaxAmount     int
 }
 
 // Client Entity that encapsulates how
@@ -70,25 +71,13 @@ func (c *Client) StartClientLoop() {
 	c.wg.Add(1)
 	defer c.wg.Done()
 
-	bet := BetFromEnv(c.config.ID)
-	if Send(c, bet) != nil {
-		return // error sending bet
-	}
-
-	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
-
+	data, err := readAgencyBets(c.config.ID)
 	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		fmt.Println("Error reading data:", err)
 		return
 	}
 
-	log.Infof("%v",
-		msg,
-	)
+	SendChunks(c, data)
 
 }
 

@@ -3,7 +3,7 @@ import logging
 import signal
 import threading
 import sys
-from .lottery import recv
+from .lottery import recv_batches,recv
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -50,7 +50,7 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()
-            recv(client_sock)
+            recv_batches(client_sock)
                         
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")

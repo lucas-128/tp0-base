@@ -27,6 +27,7 @@ services:
       - NUMERO=7574
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-1.csv:/agency-1.csv
     networks:
       - testing_net
     depends_on:
@@ -46,6 +47,7 @@ services:
       - NUMERO=1289
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-2.csv:/agency-2.csv
     networks:
       - testing_net
     depends_on:
@@ -65,6 +67,7 @@ services:
       - NUMERO=4503
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-3.csv:/agency-3.csv
     networks:
       - testing_net
     depends_on:
@@ -84,6 +87,7 @@ services:
       - NUMERO=6785
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-4.csv:/agency-4.csv
     networks:
       - testing_net
     depends_on:
@@ -103,6 +107,7 @@ services:
       - NUMERO=3321
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-5.csv:/agency-5.csv
     networks:
       - testing_net
     depends_on:
