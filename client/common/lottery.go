@@ -110,11 +110,11 @@ func SendChunks(c *Client, data string) error {
 
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		if err != nil {
-			log.Errorf("err: %v",
+			log.Errorf("%v",
 				err,
 			)
 		} else {
-			log.Errorf("good: %v",
+			log.Infof("%v",
 				msg,
 			)
 		}
