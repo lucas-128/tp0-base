@@ -1,13 +1,10 @@
-version: '3.8' 
-
+ 
+name: tp0
 services:
   server:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
     volumes:
       - ./server/config.ini:/config.ini
     networks:
@@ -16,9 +13,6 @@ services:
     container_name: client1
     image: client:latest
     entrypoint: /client
-    environment:
-      - CLI_ID=1
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
@@ -29,9 +23,6 @@ services:
     container_name: client2
     image: client:latest
     entrypoint: /client
-    environment:
-      - CLI_ID=2
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
@@ -42,9 +33,6 @@ services:
     container_name: client3
     image: client:latest
     entrypoint: /client
-    environment:
-      - CLI_ID=3
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
@@ -55,9 +43,6 @@ services:
     container_name: client4
     image: client:latest
     entrypoint: /client
-    environment:
-      - CLI_ID=4
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
@@ -68,9 +53,6 @@ services:
     container_name: client5
     image: client:latest
     entrypoint: /client
-    environment:
-      - CLI_ID=5
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
