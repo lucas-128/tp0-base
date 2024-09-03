@@ -1,7 +1,7 @@
 import sys
 
 def generate_docker_compose(output_file, num_clients):
-    compose_content = """version: '3.8' 
+    compose_content = """ 
 
 services:
   server:
