@@ -43,6 +43,8 @@ services:
       - testing_net
     depends_on:
       - server
+    volumes:
+      - ./validar-echo-server.sh:/validar-echo-server.sh
 """
 
     compose_content += validar_echo_service
