@@ -37,6 +37,7 @@ services:
     compose_content += """
 networks:
   testing_net:
+    name: tp0_testing_net
     ipam:
       driver: default
       config:
