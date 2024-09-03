@@ -37,7 +37,7 @@ services:
 
     validar_echo_service = """  validar-echo-server:
     container_name: validar-echo-server
-    image: busybox:latest
+    image: alpine:latest
     entrypoint: ["/bin/sh", "./validar-echo-server.sh"]
     networks:
       - testing_net

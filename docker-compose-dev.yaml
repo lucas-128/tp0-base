@@ -1,5 +1,3 @@
-version: '3.8' 
-
 services:
   server:
     container_name: server
@@ -80,7 +78,7 @@ services:
 
   validar-echo-server:
     container_name: validar-echo-server
-    image: busybox:latest
+    image: alpine:latest
     entrypoint: ["/bin/sh", "./validar-echo-server.sh"]
     networks:
       - testing_net
