@@ -34,21 +34,6 @@ services:
       - server
 """
         compose_content += client_service
-
-    validar_echo_service = """  validar-echo-server:
-    container_name: validar-echo-server
-    image: alpine:latest
-    entrypoint: ["/bin/sh", "./validar-echo-server.sh"]
-    networks:
-      - testing_net
-    depends_on:
-      - server
-    volumes:
-      - ./validar-echo-server.sh:/validar-echo-server.sh
-"""
-
-    compose_content += validar_echo_service
-
     compose_content += """
 networks:
   testing_net:
