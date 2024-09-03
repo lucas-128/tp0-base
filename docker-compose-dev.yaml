@@ -78,6 +78,15 @@ services:
     depends_on:
       - server
 
+  validar-echo-server:
+    container_name: validar-echo-server
+    image: busybox:latest
+    entrypoint: ["/bin/sh", "./validar-echo-server.sh"]
+    networks:
+      - testing_net
+    depends_on:
+      - server
+
 networks:
   testing_net:
     ipam:

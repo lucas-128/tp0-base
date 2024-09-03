@@ -1,7 +1,7 @@
 import sys
 
 def generate_docker_compose(output_file, num_clients):
-    compose_content = """version: '3.8' 
+    compose_content = """ 
 
 services:
   server:
@@ -34,6 +34,18 @@ services:
       - server
 """
         compose_content += client_service
+
+    validar_echo_service = """  validar-echo-server:
+    container_name: validar-echo-server
+    image: busybox:latest
+    entrypoint: ["/bin/sh", "./validar-echo-server.sh"]
+    networks:
+      - testing_net
+    depends_on:
+      - server
+"""
+
+    compose_content += validar_echo_service
 
     compose_content += """
 networks:
