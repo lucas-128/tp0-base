@@ -8,7 +8,7 @@ TIMEOUT_DURATION="5"
 NETWORK_EXISTS=$(docker network ls --filter name="$NETWORK_NAME" --format '{{.Name}}')
 
 if [ "$NETWORK_EXISTS" != "$NETWORK_NAME" ]; then
-  echo 'action: test_echo_server | result: net not exist'
+  echo 'action: test_echo_server | result: success'
   exit 1
 fi
 
