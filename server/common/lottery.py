@@ -29,7 +29,7 @@ def send_message_len(client_sock, msg: str):
     send_all(client_sock, size_bytes)
     send_all(client_sock, msg_bytes)  
 
-def handle_winner_request(client_sock, handled_agencies):
+def handle_winner_request(client_sock, handled_agencies, server):
     
     size_bytes = recv_all(client_sock, LENGTH_BYTES)
     size = int.from_bytes(size_bytes, byteorder='big')   
@@ -43,26 +43,24 @@ def handle_winner_request(client_sock, handled_agencies):
     else:
         msg = MESSAGE_TYPE_WINNERS
         send_message_len(client_sock,msg)
-        winners_docs = get_winners(agency_id)
+        winners_docs = get_winners(agency_id,server)
         send_message_len(client_sock, winners_docs)
         return True
         
 
-def get_winners(agency_id):
-    bets = load_bets()
-    winners = []
+def get_winners(agency_id, server):
+    with server._winners_lock:
+        bets = load_bets()
 
+    winners = []
     for bet in bets:
         if has_won(bet) and bet.agency == int(agency_id):
             winners.append(bet)
 
-    documents = []
-    for bet in winners:
-        documents.append(bet.document)
-
+    documents = [bet.document for bet in winners]
     result = ','.join(documents)
-
     return result
+
                 
 def send_all(conn: socket.socket, data: bytes):
     total_sent = 0
@@ -70,8 +68,7 @@ def send_all(conn: socket.socket, data: bytes):
         sent = conn.send(data[total_sent:])
         total_sent += sent
 
-def recv_batches(client_sock):
-    
+def recv_batches(client_sock, store_bets_lock):
     while True:
         size_data = recv_all(client_sock, LENGTH_BYTES)
         data_size = int.from_bytes(size_data, byteorder='big')
@@ -86,11 +83,13 @@ def recv_batches(client_sock):
             msg = f'action: apuesta_recibida | result: fail | cantidad: {len(bet_data.strip().splitlines())}'
             logging.error(msg)
             client_sock.send((msg + '\n').encode('utf-8'))
-        else:     
-            store_bets(parsed_bets)
+        else:
+            with store_bets_lock:
+                store_bets(parsed_bets)    
             msg = f'action: apuesta_recibida  | result: success | cantidad: {len(parsed_bets)}'
             logging.info(msg)
             client_sock.send((msg + '\n').encode('utf-8'))
+
         
 def parse_bets(bet_data: str) -> Optional[List[Bet]]:
     bets = []
