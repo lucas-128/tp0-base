@@ -1,4 +1,4 @@
-NETWORK_NAME="testing_net"
+NETWORK_NAME="tp0_testing_net"
 SERVICE_NAME="server"
 PORT="12345"
 MESSAGE="Test"
