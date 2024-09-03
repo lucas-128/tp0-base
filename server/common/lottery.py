@@ -38,12 +38,14 @@ def handle_winner_request(client_sock, handled_agencies):
     
     if handled_agencies < NUM_AGENCIES:
         msg = MESSAGE_TYPE_NOWINN
-        send_message_len(client_sock,msg)  
+        send_message_len(client_sock,msg)
+        return False  
     else:
         msg = MESSAGE_TYPE_WINNERS
         send_message_len(client_sock,msg)
         winners_docs = get_winners(agency_id)
         send_message_len(client_sock, winners_docs)
+        return True
         
 
 def get_winners(agency_id):

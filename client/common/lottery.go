@@ -92,7 +92,7 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
-func SendChunks(c *Client, data string) error {
+func SendChunks(c *Client, data string) {
 
 	maxBatchSize := c.config.MaxAmount
 	conn := c.conn
@@ -103,16 +103,9 @@ func SendChunks(c *Client, data string) error {
 	betDataSize := int32(len(betDataBytes))
 
 	var buffer bytes.Buffer
-	if err := binary.Write(&buffer, binary.BigEndian, betDataSize); err != nil {
-		return fmt.Errorf("failed to write BETDATA message size: %w", err)
-	}
-	if err := sendAll(conn, buffer.Bytes()); err != nil {
-		return fmt.Errorf("failed to send BETDATA message size: %w", err)
-	}
-
-	if err := sendAll(conn, betDataBytes); err != nil {
-		return fmt.Errorf("failed to send BETDATA message: %w", err)
-	}
+	binary.Write(&buffer, binary.BigEndian, betDataSize)
+	sendAll(conn, buffer.Bytes())
+	sendAll(conn, betDataBytes)
 
 	for _, chunk := range dataChunks {
 
@@ -120,37 +113,18 @@ func SendChunks(c *Client, data string) error {
 		dataSize := len(chunkBytes)
 		buffer.Reset()
 
-		if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
-			return fmt.Errorf("failed to write data size: %w", err)
-		}
+		binary.Write(&buffer, binary.BigEndian, int32(dataSize))
+		sendAll(conn, buffer.Bytes())
+		sendAll(conn, chunkBytes)
 
-		if err := sendAll(conn, buffer.Bytes()); err != nil {
-			return fmt.Errorf("failed to send data size: %w", err)
-		}
-
-		if err := sendAll(conn, chunkBytes); err != nil {
-			return fmt.Errorf("failed to send data chunk: %w", err)
-		}
-
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		if err != nil {
-			log.Errorf("%v", err)
-		} else {
-			log.Infof("%v", msg)
-		}
+		msg, _ := bufio.NewReader(c.conn).ReadString('\n')
+		log.Infof("%v", msg)
 	}
 
 	// Send data size 0 so that the server knows all chunks were sent.
 	buffer.Reset()
-	if err := binary.Write(&buffer, binary.BigEndian, int32(0)); err != nil {
-		return fmt.Errorf("failed to write: %w", err)
-	}
-
-	if err := sendAll(conn, buffer.Bytes()); err != nil {
-		return fmt.Errorf("failed to send: %w", err)
-	}
-
-	return nil
+	binary.Write(&buffer, binary.BigEndian, int32(0))
+	sendAll(conn, buffer.Bytes())
 }
 
 func splitIntoChunks(data string, maxBatchSize int, id string) []string {
@@ -205,94 +179,55 @@ func recvAll(conn net.Conn, length int) ([]byte, error) {
 	return data, nil
 }
 
-func requestWinner(c *Client) (bool, error) {
-
-	if err := c.createClientSocket(); err != nil {
-		return false, fmt.Errorf("failed to create client socket: %w", err)
-	}
-	defer c.conn.Close()
+func requestWinner(c *Client) bool {
 
 	reqWinMsg := MessageTypeReqWinner
 	reqWinBytes := []byte(reqWinMsg)
 	reqWinSize := int32(len(reqWinBytes))
 
 	var buffer bytes.Buffer
-	if err := binary.Write(&buffer, binary.BigEndian, reqWinSize); err != nil {
-		return false, fmt.Errorf("failed to write REQWINN message size: %w", err)
-	}
-	if err := sendAll(c.conn, buffer.Bytes()); err != nil {
-		return false, fmt.Errorf("failed to send REQWINN message size: %w", err)
-	}
-
-	if err := sendAll(c.conn, reqWinBytes); err != nil {
-		return false, fmt.Errorf("failed to send REQWINN message: %w", err)
-	}
+	binary.Write(&buffer, binary.BigEndian, reqWinSize)
+	sendAll(c.conn, buffer.Bytes())
+	sendAll(c.conn, reqWinBytes)
 
 	id := c.config.ID
 	idBytes := []byte(id)
 	idSize := int32(len(idBytes))
 
 	buffer.Reset()
-	if err := binary.Write(&buffer, binary.BigEndian, idSize); err != nil {
-		return false, fmt.Errorf("failed to write ID size: %w", err)
-	}
-	if err := sendAll(c.conn, buffer.Bytes()); err != nil {
-		return false, fmt.Errorf("failed to send ID size: %w", err)
-	}
+	binary.Write(&buffer, binary.BigEndian, idSize)
+	sendAll(c.conn, buffer.Bytes())
+	sendAll(c.conn, idBytes)
 
-	if err := sendAll(c.conn, idBytes); err != nil {
-		return false, fmt.Errorf("failed to send ID: %w", err)
-	}
-
-	lengthBytes, err := recvAll(c.conn, LengthBytes)
-	if err != nil {
-		return false, fmt.Errorf("failed to read response length: %w", err)
-	}
+	lengthBytes, _ := recvAll(c.conn, LengthBytes)
 
 	var responseSize int32
-	if err := binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &responseSize); err != nil {
-		return false, fmt.Errorf("failed to parse response size: %w", err)
-	}
+	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &responseSize)
 
-	responseBytes, err := recvAll(c.conn, int(responseSize))
-	if err != nil {
-		return false, fmt.Errorf("failed to read response data: %w", err)
-	}
-
+	responseBytes, _ := recvAll(c.conn, int(responseSize))
 	responseMessage := string(responseBytes)
+
 	if responseMessage == MessageTypeWinners {
-		if err := handleWinnerData(c.conn); err != nil {
-			return false, fmt.Errorf("failed to handle winner data: %w", err)
-		}
-		return true, nil
+		handleWinnerData(c.conn)
+		return true
 	} else if responseMessage == MessageTypeNoWinn {
-		return false, nil
-	} else {
-		return false, fmt.Errorf("unexpected response: %s", responseMessage)
+		return false
 	}
+	return false
 }
 
-func handleWinnerData(conn net.Conn) error {
+func handleWinnerData(conn net.Conn) {
 
-	lengthBytes, err := recvAll(conn, LengthBytes)
-	if err != nil {
-		return fmt.Errorf("failed to read winner data length: %w", err)
-	}
+	lengthBytes, _ := recvAll(conn, LengthBytes)
 
 	var dataSize int32
-	if err := binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize); err != nil {
-		return fmt.Errorf("failed to parse winner data size: %w", err)
-	}
+	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize)
 
-	dataBytes, err := recvAll(conn, int(dataSize))
-	if err != nil {
-		return fmt.Errorf("failed to read winner data: %w", err)
-	}
+	dataBytes, _ := recvAll(conn, int(dataSize))
 
 	documents := strings.Split(string(dataBytes), ",")
 	documentCount := len(documents)
 
 	logMessage := fmt.Sprintf("action: consulta_ganadores | result: success | cant_ganadores: %d", documentCount)
 	log.Infof("%v", logMessage)
-	return nil
 }
