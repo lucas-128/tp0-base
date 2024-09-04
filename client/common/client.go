@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -27,8 +26,6 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	stop   chan struct{}
-	wg     sync.WaitGroup
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -36,7 +33,6 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
-		stop:   make(chan struct{}),
 	}
 	return client
 }
@@ -63,9 +59,6 @@ func (c *Client) StartClientLoop() {
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	c.wg.Add(1)
-	defer c.wg.Done()
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
@@ -114,12 +107,12 @@ func (c *Client) StartClientLoop() {
 
 // Gracefully shut down the client
 func (c *Client) StopClient() {
-	close(c.stop)
+	//close(c.stop)
 	//c.wg.Wait()
 
 	if c.conn != nil {
 		c.conn.Close()
 		//log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
-	//log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
+	log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
 }
