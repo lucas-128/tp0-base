@@ -69,9 +69,6 @@ func (c *Client) StartClientLoop() {
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
-		case <-c.stop:
-			//log.Infof("action: loop_terminated | result: success | client_id: %v", c.config.ID)
-			return
 		case <-sigs:
 			//log.Infof("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
 			c.StopClient()
@@ -118,7 +115,7 @@ func (c *Client) StartClientLoop() {
 // Gracefully shut down the client
 func (c *Client) StopClient() {
 	close(c.stop)
-	c.wg.Wait()
+	//c.wg.Wait()
 
 	if c.conn != nil {
 		c.conn.Close()
