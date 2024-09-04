@@ -2,6 +2,7 @@ import sys
 
 def generate_docker_compose(output_file, num_clients):
     compose_content = """ 
+    
 services:
   server:
     container_name: server
