@@ -118,11 +118,11 @@ func (c *Client) StartClientLoop() {
 // Gracefully shut down the client
 func (c *Client) StopClient() {
 	close(c.stop)
-	c.wg.Wait()
 
 	if c.conn != nil {
 		c.conn.Close()
 		log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
 	log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
+	os.Exit(0)
 }
