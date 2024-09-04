@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -54,33 +52,30 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
+func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
-		case <-sigs:
-			//log.Infof("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
+		case <-sigChan:
 			c.StopClient()
-			return
 		default:
-			// Create the connection to the server in every loop iteration
 			err := c.createClientSocket()
 			if err != nil {
-				return
+				c.StopClient()
 			}
-
-			// Send the message
-			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
+			_, err = fmt.Fprintf(
 				c.conn,
 				"[CLIENT %v] Message N°%v\n",
 				c.config.ID,
 				msgID,
 			)
+			if err != nil {
+				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
+					c.config.ID,
+					err,
+				)
+				c.StopClient()
+				return
+			}
 
 			msg, err := bufio.NewReader(c.conn).ReadString('\n')
 			c.conn.Close()
@@ -90,6 +85,7 @@ func (c *Client) StartClientLoop() {
 					c.config.ID,
 					err,
 				)
+				c.StopClient()
 				return
 			}
 
@@ -107,9 +103,6 @@ func (c *Client) StartClientLoop() {
 
 // Gracefully shut down the client
 func (c *Client) StopClient() {
-	//close(c.stop)
-	//c.wg.Wait()
-
 	if c.conn != nil {
 		c.conn.Close()
 		//log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
