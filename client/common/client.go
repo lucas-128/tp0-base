@@ -60,12 +60,14 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	c.wg.Add(1)
-	defer c.wg.Done()
+	defer func() {
+		c.wg.Done()
+		c.StopClient()
+	}()
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
@@ -84,22 +86,33 @@ func (c *Client) StartClientLoop() {
 			}
 
 			// Send the message
-			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
+			_, err = fmt.Fprintf(
 				c.conn,
 				"[CLIENT %v] Message N°%v\n",
 				c.config.ID,
 				msgID,
 			)
-
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-			c.conn.Close()
-
 			if err != nil {
-				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
 					c.config.ID,
 					err,
 				)
+				c.StopClient()
+				return
+			}
+
+			// Read the response
+			msg, err := bufio.NewReader(c.conn).ReadString('\n')
+			if err != nil {
+				if err, ok := err.(net.Error); ok && err.Timeout() {
+					log.Errorf("action: read_message | result: timeout | client_id: %v", c.config.ID)
+				} else {
+					log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+						c.config.ID,
+						err,
+					)
+				}
+				c.StopClient()
 				return
 			}
 
@@ -124,5 +137,4 @@ func (c *Client) StopClient() {
 		log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
 	log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
-	os.Exit(0)
 }

@@ -17,6 +17,7 @@ class Server:
         signal.signal(signal.SIGINT, self.__handle_shutdown_signal)
 
     def __handle_shutdown_signal(self, signum, frame):
+        
         signal_name = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
         logging.info(f'action: receive_signal | signal: {signal_name} | result: in_progress')
         self._shutdown_flag.set()  
