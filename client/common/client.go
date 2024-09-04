@@ -70,10 +70,10 @@ func (c *Client) StartClientLoop() {
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
 		case <-c.stop:
-			log.Infof("action: loop_terminated | result: success | client_id: %v", c.config.ID)
+			//log.Infof("action: loop_terminated | result: success | client_id: %v", c.config.ID)
 			return
-		case sig := <-sigs:
-			log.Infof("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
+		case <-sigs:
+			//log.Infof("action: signal_received | signal: %v | client_id: %v", sig, c.config.ID)
 			c.StopClient()
 			return
 		default:
@@ -122,7 +122,7 @@ func (c *Client) StopClient() {
 
 	if c.conn != nil {
 		c.conn.Close()
-		log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
+		//log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
-	log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
+	//log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
 }
