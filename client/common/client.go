@@ -39,7 +39,8 @@ func NewClient(config ClientConfig) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
+	timeout := 2 * time.Second
+	conn, err := net.DialTimeout("tcp", c.config.ServerAddress, timeout)
 	if err != nil {
 		log.Criticalf(
 			"action: connect | result: fail | client_id: %v | error: %v",
@@ -53,12 +54,15 @@ func (c *Client) createClientSocket() error {
 }
 
 func (c *Client) StartClientLoop(sigChan chan os.Signal) {
+
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
+
 		select {
 		case <-sigChan:
 			c.StopClient()
 			return
 		default:
+
 			err := c.createClientSocket()
 			if err != nil {
 				c.StopClient()
@@ -90,12 +94,10 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 				c.StopClient()
 				return
 			}
-
 			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 				c.config.ID,
 				msg,
 			)
-
 			// Wait a time between sending one message and the next one
 			time.Sleep(c.config.LoopPeriod)
 		}
