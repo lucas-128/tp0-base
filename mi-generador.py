@@ -2,7 +2,7 @@ import sys
 
 def generate_docker_compose(output_file, num_clients):
     compose_content = """ 
-    
+
 services:
   server:
     container_name: server
@@ -34,10 +34,10 @@ services:
       - server
 """
         compose_content += client_service
-
     compose_content += """
 networks:
   testing_net:
+    name: tp0_testing_net
     ipam:
       driver: default
       config:
