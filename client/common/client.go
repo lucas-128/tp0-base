@@ -57,10 +57,12 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 		select {
 		case <-sigChan:
 			c.StopClient()
+			return
 		default:
 			err := c.createClientSocket()
 			if err != nil {
 				c.StopClient()
+				return
 			}
 			_, err = fmt.Fprintf(
 				c.conn,
