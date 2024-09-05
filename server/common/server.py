@@ -11,19 +11,19 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._shutdown_flag = threading.Event()
-
-        # Signal handlers 
+        self._clients_socks = []
         signal.signal(signal.SIGTERM, self.__handle_shutdown_signal)
         signal.signal(signal.SIGINT, self.__handle_shutdown_signal)
 
     def __handle_shutdown_signal(self, signum, frame):
         
         signal_name = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
-        logging.info(f'action: receive_signal | signal: {signal_name} | result: in_progress')
+        logging.info(f'action: receive_signal | result: success | signal: {signal_name} ')
         self._shutdown_flag.set()  
-        self._server_socket.close()  
-        logging.info('action: shutdown_server | result: success')
-        sys.exit(0)  
+        for client_sock in self._clients_socks:
+            client_sock.close() 
+            logging.info('action: disconnect_client | result: success')
+        logging.info('action: shutdown | result: success') 
 
     def run(self):
         """
@@ -37,6 +37,7 @@ class Server:
         while not self._shutdown_flag.is_set():
             try:
                 client_sock = self.__accept_new_connection()
+                self._clients_socks.append(client_sock)
                 self.__handle_client_connection(client_sock)
             except OSError:
                 break
