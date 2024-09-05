@@ -55,6 +55,7 @@ func (c *Client) createClientSocket() error {
 func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 
 	select {
+	// If a shutdown signal is received, stop the client and exit the loop
 	case <-sigChan:
 		c.StopClient()
 		return
@@ -66,11 +67,15 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 			return
 		}
 
+		// Retrieve the bet from the environment configuration
 		bet := BetFromEnv(c.config.ID)
+
+		// Send the bet to the client and check for errors
 		if Send(c, bet) != nil {
-			return // error sending bet
+			return
 		}
 
+		// Read a response message
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		c.conn.Close()
 
