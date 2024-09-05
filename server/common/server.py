@@ -3,12 +3,12 @@ import logging
 import signal
 import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor
-from .lottery import recv_batches, recv, recv_intro_msg, handle_winner_request
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from .lottery import recv_batches, recv_intro_msg, handle_winner_request
 from .constants import MESSAGE_TYPE_BETDATA, MESSAGE_TYPE_REQWIN, NUM_AGENCIES
 
 class Server:
-    def __init__(self, port, listen_backlog, max_workers=10):
+    def __init__(self, port, listen_backlog):
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -17,7 +17,8 @@ class Server:
         self._handled_agencies_lock = threading.Lock()
         self._store_bets_lock = threading.Lock()
         self._winners_lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._clients_socks = []
+        self._executor = ThreadPoolExecutor(max_workers=NUM_AGENCIES)
         signal.signal(signal.SIGTERM, self.__handle_shutdown_signal)
         signal.signal(signal.SIGINT, self.__handle_shutdown_signal)
         
@@ -39,25 +40,40 @@ class Server:
 
     def __handle_shutdown_signal(self, signum, frame):
         signal_name = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
-        logging.info(f'action: receive_signal | signal: {signal_name} | result: in_progress')
+        logging.info(f'action: receive_signal | result: success | signal: {signal_name}')
         self._shutdown_flag.set()  
+        for client_sock in self._clients_socks:
+            try:
+                client_sock.close()
+                logging.info('action: disconnect_client | result: success')
+            except Exception as e:
+                logging.error(f'Failed to close client socket: {e}')
+        
+        logging.info('action: shutdown | result: success')
         self._server_socket.close()  
-        self._executor.shutdown(wait=True)  
-        logging.info('action: shutdown_server | result: success')
-        sys.exit(0)  
 
     def run(self):
+        """
+        Main server loop, handles accepting new connections and processing client requests.
+        """
+
         while not self._shutdown_flag.is_set():
             try:
                 client_sock = self.__accept_new_connection()
+                self._clients_socks.append(client_sock)
                 self._executor.submit(self.__handle_client_connection, client_sock)
+
             except OSError:
-                break
+                if self._shutdown_flag.is_set():
+                    break  
+                logging.error('Server accept failed due to an unexpected error')
+        
+        self._executor.shutdown(wait=True)
 
     def __handle_client_connection(self, client_sock):
         try:
             addr = client_sock.getpeername()
-            while True:
+            while not self._shutdown_flag.is_set():  
                 msg_type = recv_intro_msg(client_sock)
                 if msg_type == MESSAGE_TYPE_BETDATA:
                     recv_batches(client_sock, self._store_bets_lock)

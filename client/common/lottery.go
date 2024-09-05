@@ -92,7 +92,7 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
-func SendChunks(c *Client, data string) {
+func SendChunks(c *Client, data string, sigChan chan os.Signal) error {
 
 	maxBatchSize := c.config.MaxAmount
 	conn := c.conn
@@ -103,28 +103,60 @@ func SendChunks(c *Client, data string) {
 	betDataSize := int32(len(betDataBytes))
 
 	var buffer bytes.Buffer
-	binary.Write(&buffer, binary.BigEndian, betDataSize)
-	sendAll(conn, buffer.Bytes())
-	sendAll(conn, betDataBytes)
+	if err := binary.Write(&buffer, binary.BigEndian, betDataSize); err != nil {
+		return fmt.Errorf("failed to write BETDATA message size: %w", err)
+	}
+	if err := sendAll(conn, buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to send BETDATA message size: %w", err)
+	}
+
+	if err := sendAll(conn, betDataBytes); err != nil {
+		return fmt.Errorf("failed to send BETDATA message: %w", err)
+	}
 
 	for _, chunk := range dataChunks {
 
-		chunkBytes := []byte(chunk)
-		dataSize := len(chunkBytes)
-		buffer.Reset()
+		select {
+		case <-sigChan:
+			c.StopClient()
+			return fmt.Errorf("SIGTERM Received")
 
-		binary.Write(&buffer, binary.BigEndian, int32(dataSize))
-		sendAll(conn, buffer.Bytes())
-		sendAll(conn, chunkBytes)
+		default:
 
-		msg, _ := bufio.NewReader(c.conn).ReadString('\n')
-		log.Infof("%v", msg)
+			chunkBytes := []byte(chunk)
+			dataSize := len(chunkBytes)
+			buffer.Reset()
+
+			if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
+				return fmt.Errorf("failed to write data size: %w", err)
+			}
+
+			if err := sendAll(conn, buffer.Bytes()); err != nil {
+				return fmt.Errorf("failed to send data size: %w", err)
+			}
+
+			if err := sendAll(conn, chunkBytes); err != nil {
+				return fmt.Errorf("failed to send data chunk: %w", err)
+			}
+
+			msg, err := bufio.NewReader(c.conn).ReadString('\n')
+			if err != nil {
+				log.Errorf("%v", err)
+			} else {
+				log.Infof("%v", msg)
+			}
+		}
 	}
-
 	// Send data size 0 so that the server knows all chunks were sent.
 	buffer.Reset()
-	binary.Write(&buffer, binary.BigEndian, int32(0))
-	sendAll(conn, buffer.Bytes())
+	if err := binary.Write(&buffer, binary.BigEndian, int32(0)); err != nil {
+		return fmt.Errorf("failed to write: %w", err)
+	}
+
+	if err := sendAll(conn, buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to send: %w", err)
+	}
+	return nil
 }
 
 func splitIntoChunks(data string, maxBatchSize int, id string) []string {
