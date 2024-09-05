@@ -92,16 +92,21 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
-func SendChunks(c *Client, data string, sigChan chan os.Signal) error {
+func SendChunks(c *Client, sigChan chan os.Signal) error {
+	filePath := fmt.Sprintf("agency-%s.csv", c.config.ID)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
 
 	maxBatchSize := c.config.MaxAmount
 	conn := c.conn
-	dataChunks := splitIntoChunks(data, maxBatchSize, c.config.ID)
-
 	betDataMsg := MessageTypeBetData
 	betDataBytes := []byte(betDataMsg)
 	betDataSize := int32(len(betDataBytes))
 
+	// Send BETDATA message type
 	var buffer bytes.Buffer
 	if err := binary.Write(&buffer, binary.BigEndian, betDataSize); err != nil {
 		return fmt.Errorf("failed to write BETDATA message size: %w", err)
@@ -109,92 +114,82 @@ func SendChunks(c *Client, data string, sigChan chan os.Signal) error {
 	if err := sendAll(conn, buffer.Bytes()); err != nil {
 		return fmt.Errorf("failed to send BETDATA message size: %w", err)
 	}
-
 	if err := sendAll(conn, betDataBytes); err != nil {
 		return fmt.Errorf("failed to send BETDATA message: %w", err)
 	}
 
-	for _, chunk := range dataChunks {
+	scanner := bufio.NewScanner(file)
+	var chunkBuffer bytes.Buffer
+	lineCount := 0
 
+	for scanner.Scan() {
 		select {
 		case <-sigChan:
 			c.StopClient()
 			return fmt.Errorf("SIGTERM Received")
-
 		default:
+			line := scanner.Text()
+			lineCount++
+			lineWithId := line + "," + c.config.ID
 
-			chunkBytes := []byte(chunk)
-			dataSize := len(chunkBytes)
-			buffer.Reset()
-
-			if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
-				return fmt.Errorf("failed to write data size: %w", err)
+			if lineCount > maxBatchSize && chunkBuffer.Len() > 0 {
+				// Send the current chunk
+				if err := sendChunk(c, chunkBuffer.String(), conn); err != nil {
+					return err
+				}
+				chunkBuffer.Reset()
+				lineCount = 1
 			}
 
-			if err := sendAll(conn, buffer.Bytes()); err != nil {
-				return fmt.Errorf("failed to send data size: %w", err)
+			if chunkBuffer.Len() > 0 {
+				chunkBuffer.WriteString("\n")
 			}
-
-			if err := sendAll(conn, chunkBytes); err != nil {
-				return fmt.Errorf("failed to send data chunk: %w", err)
-			}
-
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-			if err != nil {
-				log.Errorf("%v", err)
-			} else {
-				log.Infof("%v", msg)
-			}
+			chunkBuffer.WriteString(lineWithId)
 		}
 	}
-	// Send data size 0 so that the server knows all chunks were sent.
-	buffer.Reset()
-	if err := binary.Write(&buffer, binary.BigEndian, int32(0)); err != nil {
-		return fmt.Errorf("failed to write: %w", err)
+
+	// Send the remaining chunk if any
+	if chunkBuffer.Len() > 0 {
+		if err := sendChunk(c, chunkBuffer.String(), conn); err != nil {
+			return err
+		}
 	}
 
-	if err := sendAll(conn, buffer.Bytes()); err != nil {
-		return fmt.Errorf("failed to send: %w", err)
+	// Send data size 0 to indicate completion
+	if err := sendChunk(c, "", conn); err != nil {
+		return err
 	}
+
 	return nil
 }
 
-func splitIntoChunks(data string, maxBatchSize int, id string) []string {
-	var chunks []string
-	scanner := bufio.NewScanner(strings.NewReader(data))
+// sendChunk handles the process of sending a chunk of data
+func sendChunk(c *Client, chunk string, conn net.Conn) error {
+	chunkBytes := []byte(chunk)
+	dataSize := len(chunkBytes)
 	var buffer bytes.Buffer
-	lineCount := 0
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		lineCount++
-		lineWithId := line + "," + id
+	if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
+		return fmt.Errorf("failed to write data size: %w", err)
+	}
 
-		if lineCount > maxBatchSize && buffer.Len() > 0 {
-			chunks = append(chunks, buffer.String())
-			buffer.Reset()
-			lineCount = 1
+	if err := sendAll(conn, buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to send data size: %w", err)
+	}
+
+	if dataSize > 0 {
+		if err := sendAll(conn, chunkBytes); err != nil {
+			return fmt.Errorf("failed to send data chunk: %w", err)
 		}
 
-		if buffer.Len() > 0 {
-			buffer.WriteString("\n")
+		msg, err := bufio.NewReader(c.conn).ReadString('\n')
+		if err != nil {
+			log.Errorf("%v", err)
+		} else {
+			log.Infof("%v", msg)
 		}
-		buffer.WriteString(lineWithId)
 	}
-
-	if buffer.Len() > 0 {
-		chunks = append(chunks, buffer.String())
-	}
-	return chunks
-}
-func readAgencyBets(id string) (string, error) {
-
-	filePath := fmt.Sprintf("agency-%s.csv", id)
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return nil
 }
 
 func recvAll(conn net.Conn, length int) ([]byte, error) {
