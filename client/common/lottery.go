@@ -92,6 +92,8 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
+// SendChunks reads data from a file and sends it to the client in chunks.
+// It handles shutdown signals and sends an initial BETDATA message.
 func SendChunks(c *Client, sigChan chan os.Signal) error {
 	filePath := fmt.Sprintf("agency-%s.csv", c.config.ID)
 	file, err := os.Open(filePath)
@@ -102,6 +104,7 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 
 	maxBatchSize := c.config.MaxAmount
 	conn := c.conn
+	// Message type for bet data
 	betDataMsg := MessageTypeBetData
 	betDataBytes := []byte(betDataMsg)
 	betDataSize := int32(len(betDataBytes))
@@ -124,6 +127,7 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 
 	for scanner.Scan() {
 		select {
+		// Stop sending data if a shutdown signal is received
 		case <-sigChan:
 			c.StopClient()
 			return fmt.Errorf("SIGTERM Received")
@@ -148,7 +152,7 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 		}
 	}
 
-	// Send the remaining chunk if any
+	// Send any remaining data in the buffer
 	if chunkBuffer.Len() > 0 {
 		if err := sendChunk(c, chunkBuffer.String(), conn); err != nil {
 			return err
@@ -163,7 +167,8 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 	return nil
 }
 
-// sendChunk handles the process of sending a chunk of data
+// sendChunk sends a chunk of data to the client, including its size.
+// It handles both the size and data transmission, and logs any errors encountered.
 func sendChunk(c *Client, chunk string, conn net.Conn) error {
 	chunkBytes := []byte(chunk)
 	dataSize := len(chunkBytes)
@@ -173,6 +178,7 @@ func sendChunk(c *Client, chunk string, conn net.Conn) error {
 		return fmt.Errorf("failed to write data size: %w", err)
 	}
 
+	// Send the data size to the server
 	if err := sendAll(conn, buffer.Bytes()); err != nil {
 		return fmt.Errorf("failed to send data size: %w", err)
 	}
