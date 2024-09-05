@@ -1,7 +1,6 @@
 import socket
 import struct
 import logging
-import json
 from typing import List, Optional
 from .utils import Bet, store_bets,load_bets,has_won
 from .constants import LENGTH_BYTES, MESSAGE_TYPE_NOWINN, MESSAGE_TYPE_WINNERS,NUM_AGENCIES
