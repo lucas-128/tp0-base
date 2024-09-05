@@ -84,7 +84,7 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
-func SendChunks(c *Client, data string) error {
+func SendChunks(c *Client, data string, sigChan chan os.Signal) error {
 
 	maxBatchSize := c.config.MaxAmount
 	conn := c.conn
@@ -92,33 +92,40 @@ func SendChunks(c *Client, data string) error {
 
 	for _, chunk := range dataChunks {
 
-		chunkBytes := []byte(chunk)
-		dataSize := len(chunkBytes)
-		var buffer bytes.Buffer
+		select {
+		case <-sigChan:
+			c.StopClient()
+			return nil
 
-		if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
-			return fmt.Errorf("failed to write data size: %w", err)
+		default:
+
+			chunkBytes := []byte(chunk)
+			dataSize := len(chunkBytes)
+			var buffer bytes.Buffer
+
+			if err := binary.Write(&buffer, binary.BigEndian, int32(dataSize)); err != nil {
+				return fmt.Errorf("failed to write data size: %w", err)
+			}
+
+			if err := sendAll(conn, buffer.Bytes()); err != nil {
+				return fmt.Errorf("failed to send data size: %w", err)
+			}
+
+			if err := sendAll(conn, chunkBytes); err != nil {
+				return fmt.Errorf("failed to send data chunk: %w", err)
+			}
+
+			msg, err := bufio.NewReader(c.conn).ReadString('\n')
+			if err != nil {
+				log.Errorf("%v",
+					err,
+				)
+			} else {
+				log.Infof("%v",
+					msg,
+				)
+			}
 		}
-
-		if err := sendAll(conn, buffer.Bytes()); err != nil {
-			return fmt.Errorf("failed to send data size: %w", err)
-		}
-
-		if err := sendAll(conn, chunkBytes); err != nil {
-			return fmt.Errorf("failed to send data chunk: %w", err)
-		}
-
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		if err != nil {
-			log.Errorf("%v",
-				err,
-			)
-		} else {
-			log.Infof("%v",
-				msg,
-			)
-		}
-
 	}
 
 	// Send data size 0 so that the server knows all chunks were sent.
