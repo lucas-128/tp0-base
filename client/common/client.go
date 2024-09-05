@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -29,8 +26,6 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	stop   chan struct{}
-	wg     sync.WaitGroup
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -38,7 +33,6 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
-		stop:   make(chan struct{}),
 	}
 	return client
 }
@@ -61,17 +55,12 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 
 	err := c.createClientSocket()
 	if err != nil {
 		return
 	}
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	c.wg.Add(1)
-	defer c.wg.Done()
 
 	data, err := readAgencyBets(c.config.ID)
 	if err != nil {
@@ -79,25 +68,25 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	SendChunks(c, data)
-	for {
-		success, _ := requestWinner(c)
-		if !success {
-			time.Sleep(retryInterval)
-			continue
+	sendErr := SendChunks(c, data, sigChan)
+	if sendErr == nil {
+		for {
+			success, _ := requestWinner(c)
+			if !success {
+				time.Sleep(retryInterval)
+				continue
+			}
+			break
 		}
-		break
 	}
 }
 
 // Gracefully shut down the client
 func (c *Client) StopClient() {
-	close(c.stop)
-	c.wg.Wait()
 
 	if c.conn != nil {
 		c.conn.Close()
-		log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
+		//log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
-	log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
+	log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
 }
