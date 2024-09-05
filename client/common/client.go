@@ -61,7 +61,9 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 		// Create the connection the server in every loop iteration. Send an
 
 		select {
+		// Case when a signal is received on sigChan
 		case <-sigChan:
+			// Stop the client gracefully in response to the received signal and exit de loop
 			c.StopClient()
 			return
 

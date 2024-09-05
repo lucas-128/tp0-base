@@ -16,7 +16,10 @@ class Server:
         signal.signal(signal.SIGINT, self.__handle_shutdown_signal)
 
     def __handle_shutdown_signal(self, signum, frame):
-        
+        """
+        Method to handle shutdown signals (SIGTERM or SIGINT).
+        This method is triggered when the program receives a termination or interrupt signal.
+        """
         signal_name = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
         logging.info(f'action: receive_signal | result: success | signal: {signal_name} ')
         self._shutdown_flag.set()  

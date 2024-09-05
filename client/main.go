@@ -113,6 +113,7 @@ func main() {
 	}
 
 	sigChan := make(chan os.Signal, 1)
+	// Notify sigChan when a SIGTERM (termination signal) is received by the program
 	signal.Notify(sigChan, syscall.SIGTERM)
 
 	client := common.NewClient(clientConfig)
