@@ -35,7 +35,7 @@ def generate_docker_compose(output_file, num_clients):
     compose_content += """
 networks:
   testing_net:
-    name: testing_net
+    name: tp0_testing_net
     ipam:
       driver: default
       config:
