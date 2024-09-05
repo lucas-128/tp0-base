@@ -1,7 +1,6 @@
 import socket
 import struct
 import logging
-import json
 from typing import List, Optional
 from .utils import Bet, store_bets
 
