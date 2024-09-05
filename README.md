@@ -73,6 +73,10 @@ Si es necesario sumar más agencias al sistema, hay que seguir estos pasos:
 
 El servidor puede responder a varios clientes de forma simultánea gracias a un threadpool, que asigna un worker para manejar cada conexión entrante.
 
+Utilicé concurrent.futures.ThreadPoolExecutor para este trabajo, pero es importante considerar sus limitaciones debido al Global Interpreter Lock (GIL) de Python. El GIL impide la ejecución paralela real del código Python, lo que puede reducir la efectividad de ThreadPoolExecutor en tareas intensivas en CPU. Para operaciones que requieren un alto uso de CPU, ThreadPoolExecutor puede no ser la mejor opción.
+
+Para lograr un paralelismo real, se recomienda usar el módulo multiprocessing, que evitan las restricciones del GIL. Sin embargo, dado que este trabajo en particular no es intensivo en CPU, el uso de ThreadPoolExecutor es aceptable.
+
 Utilizamos los siguientes locks para asegurar la sincronización entre los distintos hilos:
 
 1 - handled_agencies_lock:
