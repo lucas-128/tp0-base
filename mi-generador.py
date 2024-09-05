@@ -38,6 +38,7 @@ services:
     compose_content += """
 networks:
   testing_net:
+    name: testing_net
     ipam:
       driver: default
       config:

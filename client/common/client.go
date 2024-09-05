@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"time"
@@ -60,13 +59,7 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 		return
 	}
 
-	data, err := readAgencyBets(c.config.ID)
-	if err != nil {
-		fmt.Println("Error reading data:", err)
-		return
-	}
-
-	SendChunks(c, data, sigChan)
+	SendChunks(c, sigChan)
 
 }
 
