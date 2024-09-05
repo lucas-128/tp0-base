@@ -1,7 +1,6 @@
 import socket
 import struct
 import logging
-import json
 from .utils import Bet, store_bets
 
 def recv_all(sock, length):

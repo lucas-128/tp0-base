@@ -4,9 +4,6 @@ import (
 	"bufio"
 	"net"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -26,8 +23,6 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	stop   chan struct{}
-	wg     sync.WaitGroup
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -35,7 +30,6 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
-		stop:   make(chan struct{}),
 	}
 	return client
 }
@@ -58,48 +52,49 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 
-	err := c.createClientSocket()
-	if err != nil {
+	select {
+	case <-sigChan:
+		c.StopClient()
 		return
-	}
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	c.wg.Add(1)
-	defer c.wg.Done()
+	default:
 
-	bet := BetFromEnv(c.config.ID)
-	if Send(c, bet) != nil {
-		return // error sending bet
-	}
+		err := c.createClientSocket()
+		if err != nil {
+			return
+		}
 
-	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
+		bet := BetFromEnv(c.config.ID)
+		if Send(c, bet) != nil {
+			return // error sending bet
+		}
 
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
+		msg, err := bufio.NewReader(c.conn).ReadString('\n')
+		c.conn.Close()
+
+		if err != nil {
+			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return
+		}
+
+		log.Infof("%v",
+			msg,
 		)
-		return
 	}
-
-	log.Infof("%v",
-		msg,
-	)
 
 }
 
 // Gracefully shut down the client
 func (c *Client) StopClient() {
-	close(c.stop)
-	c.wg.Wait()
 
 	if c.conn != nil {
 		c.conn.Close()
-		log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
+		//log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
 	}
-	log.Infof("action: client_shutdown | result: success | client_id: %v", c.config.ID)
+	log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
 }
