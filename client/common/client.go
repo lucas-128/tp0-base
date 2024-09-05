@@ -59,6 +59,7 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 		return
 	}
 
+	// Send chunks of data to the client, handling shutdown signals
 	SendChunks(c, sigChan)
 
 }
