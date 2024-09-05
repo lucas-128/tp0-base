@@ -61,11 +61,14 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 		return
 	}
 
+	// Send data chunks to the client and handle any errors
 	sendErr := SendChunks(c, sigChan)
 	if sendErr == nil {
+		// Retry requesting a winner until successful or interrupted
 		for {
 			success := requestWinner(c)
 			if !success {
+				// Wait before retrying if the request fails
 				time.Sleep(retryInterval)
 				continue
 			}

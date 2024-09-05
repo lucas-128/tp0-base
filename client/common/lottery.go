@@ -92,6 +92,8 @@ func Send(c *Client, bet Bet) error {
 	return nil
 }
 
+// SendChunks reads data from a file and sends it to the client in chunks.
+// It handles shutdown signals and sends an initial BETDATA message.
 func SendChunks(c *Client, sigChan chan os.Signal) error {
 	filePath := fmt.Sprintf("agency-%s.csv", c.config.ID)
 	file, err := os.Open(filePath)
@@ -125,6 +127,7 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 	for scanner.Scan() {
 		select {
 		case <-sigChan:
+			// Stop sending data if a shutdown signal is received
 			c.StopClient()
 			return fmt.Errorf("SIGTERM Received")
 		default:
@@ -148,7 +151,7 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 		}
 	}
 
-	// Send the remaining chunk if any
+	// Send any remaining data in the buffer
 	if chunkBuffer.Len() > 0 {
 		if err := sendChunk(c, chunkBuffer.String(), conn); err != nil {
 			return err
@@ -163,7 +166,8 @@ func SendChunks(c *Client, sigChan chan os.Signal) error {
 	return nil
 }
 
-// sendChunk handles the process of sending a chunk of data
+// sendChunk sends a chunk of data to the client, including its size.
+// It handles both the size and data transmission, and logs any errors encountered.
 func sendChunk(c *Client, chunk string, conn net.Conn) error {
 	chunkBytes := []byte(chunk)
 	dataSize := len(chunkBytes)
@@ -173,6 +177,7 @@ func sendChunk(c *Client, chunk string, conn net.Conn) error {
 		return fmt.Errorf("failed to write data size: %w", err)
 	}
 
+	// Send the data size to the server
 	if err := sendAll(conn, buffer.Bytes()); err != nil {
 		return fmt.Errorf("failed to send data size: %w", err)
 	}
@@ -206,8 +211,10 @@ func recvAll(conn net.Conn, length int) ([]byte, error) {
 	return data, nil
 }
 
+// Sends a request to the server to get the winners and processes the response.
 func requestWinner(c *Client) bool {
 
+	// Create a request message for winners
 	reqWinMsg := MessageTypeReqWinner
 	reqWinBytes := []byte(reqWinMsg)
 	reqWinSize := int32(len(reqWinBytes))
@@ -226,6 +233,7 @@ func requestWinner(c *Client) bool {
 	sendAll(c.conn, buffer.Bytes())
 	sendAll(c.conn, idBytes)
 
+	// Receive the length of the server's response
 	lengthBytes, _ := recvAll(c.conn, LengthBytes)
 
 	var responseSize int32
@@ -234,6 +242,7 @@ func requestWinner(c *Client) bool {
 	responseBytes, _ := recvAll(c.conn, int(responseSize))
 	responseMessage := string(responseBytes)
 
+	// Check the type of response message
 	if responseMessage == MessageTypeWinners {
 		handleWinnerData(c.conn)
 		return true
@@ -243,15 +252,19 @@ func requestWinner(c *Client) bool {
 	return false
 }
 
+// Processes the winner data received from the server and logs the result.
 func handleWinnerData(conn net.Conn) {
 
 	lengthBytes, _ := recvAll(conn, LengthBytes)
 
 	var dataSize int32
+	// Read the size of the winner data from the buffer
 	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize)
 
+	// Receive the actual winner data
 	dataBytes, _ := recvAll(conn, int(dataSize))
 
+	// Split the data into documents and count
 	documents := strings.Split(string(dataBytes), ",")
 	documentCount := len(documents)
 
