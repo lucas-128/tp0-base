@@ -66,13 +66,12 @@ func (c *Client) StartClientLoop(sigChan chan os.Signal) {
 	if sendErr == nil {
 		// Retry requesting a winner until successful or interrupted
 		for {
-			success := requestWinner(c)
-			if !success {
-				// Wait before retrying if the request fails
-				time.Sleep(retryInterval)
-				continue
+			err := requestWinner(c, sigChan)
+			if err == nil || err.Error() == Sigterm {
+				break
 			}
-			break
+			// Wait before retrying if the request fails
+			time.Sleep(retryInterval)
 		}
 	}
 }

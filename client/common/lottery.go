@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +17,7 @@ const (
 	MessageTypeBetData   = "BETDATA"
 	MessageTypeReqWinner = "REQWINN"
 	LengthBytes          = 4
+	Sigterm              = "SIGTERM"
 )
 
 type Bet struct {
@@ -197,23 +199,28 @@ func sendChunk(c *Client, chunk string, conn net.Conn) error {
 	return nil
 }
 
-func recvAll(conn net.Conn, length int) ([]byte, error) {
+func recvAll(conn net.Conn, length int, sigChan chan os.Signal) ([]byte, error) {
 	data := make([]byte, 0, length)
 	buf := make([]byte, length)
 
 	for len(data) < length {
-		n, err := conn.Read(buf[len(data):])
-		if err != nil {
-			return nil, fmt.Errorf("failed to receive data: %w", err)
+		select {
+		case <-sigChan:
+			return nil, errors.New(Sigterm)
+		default:
+			n, err := conn.Read(buf[len(data):])
+			if err != nil {
+				return nil, fmt.Errorf("failed to receive data: %w", err)
+			}
+			data = append(data, buf[:n]...)
 		}
-		data = append(data, buf[:n]...)
 	}
+
 	return data, nil
 }
 
 // Sends a request to the server to get the winners and processes the response.
-func requestWinner(c *Client) bool {
-
+func requestWinner(c *Client, sigChan chan os.Signal) error {
 	// Create a request message for winners
 	reqWinMsg := MessageTypeReqWinner
 	reqWinBytes := []byte(reqWinMsg)
@@ -233,47 +240,68 @@ func requestWinner(c *Client) bool {
 	sendAll(c.conn, buffer.Bytes())
 	sendAll(c.conn, idBytes)
 
-	// Receive the length of the server's response
-	lengthBytes, _ := recvAll(c.conn, LengthBytes)
+	// Use select to listen for SIGTERM signals while waiting for the response
+	select {
+	case <-sigChan:
+		c.StopClient()
+		return errors.New(Sigterm)
+	default:
+		// Receive the length of the server's response
+		lengthBytes, err := recvAll(c.conn, LengthBytes, sigChan)
+		if err != nil {
+			return err
+		}
 
-	var responseSize int32
-	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &responseSize)
+		var responseSize int32
+		binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &responseSize)
 
-	responseBytes, _ := recvAll(c.conn, int(responseSize))
-	responseMessage := string(responseBytes)
+		responseBytes, err := recvAll(c.conn, int(responseSize), sigChan)
+		if err != nil {
+			return err
+		}
+		responseMessage := string(responseBytes)
 
-	// Check the type of response message
-	if responseMessage == MessageTypeWinners {
-		handleWinnerData(c.conn)
-		return true
-	} else if responseMessage == MessageTypeNoWinn {
-		return false
+		// Check the type of response message
+		if responseMessage == MessageTypeWinners {
+			return handleWinnerData(c, sigChan)
+		} else if responseMessage == MessageTypeNoWinn {
+			return errors.New(MessageTypeNoWinn)
+		}
 	}
-	return false
+
+	return errors.New(MessageTypeNoWinn)
 }
 
 // Processes the winner data received from the server and logs the result.
-func handleWinnerData(conn net.Conn) {
+func handleWinnerData(c *Client, sigChan chan os.Signal) error {
 
-	lengthBytes, _ := recvAll(conn, LengthBytes)
+	conn := c.conn
+	lengthBytes, err := recvAll(conn, LengthBytes, sigChan)
+	if err != nil {
+		return err
+	}
 
 	var dataSize int32
-	// Read the size of the winner data from the buffer
 	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize)
 
 	if int(dataSize) == 0 {
-		logMessage := ("action: consulta_ganadores | result: success | cant_ganadores: 0")
+		logMessage := "action: consulta_ganadores | result: success | cant_ganadores: 0"
 		log.Infof("%v", logMessage)
-		return
+		return nil
 	}
 
 	// Receive the actual winner data
-	dataBytes, _ := recvAll(conn, int(dataSize))
+	dataBytes, err := recvAll(conn, int(dataSize), sigChan)
+	if err != nil {
+		return err
+	}
 
-	// Split the data into documents and count
+	// Split the data into documents and count them
 	documents := strings.Split(string(dataBytes), ",")
 	documentCount := len(documents)
 
 	logMessage := fmt.Sprintf("action: consulta_ganadores | result: success | cant_ganadores: %d", documentCount)
 	log.Infof("%v", logMessage)
+
+	return nil
 }
