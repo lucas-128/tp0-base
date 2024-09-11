@@ -6,18 +6,28 @@ from .utils import Bet, store_bets,load_bets,has_won
 from .constants import LENGTH_BYTES, MESSAGE_TYPE_NOWINN, MESSAGE_TYPE_WINNERS,NUM_AGENCIES
 
 # Receives all bytes of data from a socket until the specified length is met
-def recv_all(sock, length):
+def recv_all(sock, length, shutdown_flag):
     data = bytearray()
     while len(data) < length:
+        if shutdown_flag.is_set():
+            # Shutdown was signaled, exit the function
+            raise RuntimeError("Shutdown signal received, aborting recv_all.")
+        
+        # Try to receive data
         packet = sock.recv(length - len(data))
+        if not packet:
+            # Connection closed
+            break
+        
         data.extend(packet)
+    
     return data
 
 # Receives an introductory message from the client socket
-def recv_intro_msg(client_sock):
-    size_data = recv_all(client_sock, LENGTH_BYTES)
+def recv_intro_msg(client_sock, shutdown_flag):
+    size_data = recv_all(client_sock, LENGTH_BYTES,shutdown_flag)
     data_size = int.from_bytes(size_data, byteorder='big')
-    message_data = recv_all(client_sock, data_size)    
+    message_data = recv_all(client_sock, data_size,shutdown_flag)    
     message = message_data.decode('utf-8')
     return message
   
@@ -30,11 +40,11 @@ def send_message_len(client_sock, msg: str):
     send_all(client_sock, msg_bytes)  
 
 # Handles a winner request from the client socket and sends appropriate responses
-def handle_winner_request(client_sock, handled_agencies, server):
+def handle_winner_request(client_sock, handled_agencies, server, shutdown_flag):
     
-    size_bytes = recv_all(client_sock, LENGTH_BYTES)
+    size_bytes = recv_all(client_sock, LENGTH_BYTES,shutdown_flag)
     size = int.from_bytes(size_bytes, byteorder='big')   
-    agency_id_bytes = recv_all(client_sock, size)
+    agency_id_bytes = recv_all(client_sock, size,shutdown_flag)
     agency_id = agency_id_bytes.decode('utf-8')
     
     if handled_agencies < NUM_AGENCIES:
@@ -70,53 +80,27 @@ def send_all(conn: socket.socket, data: bytes):
 
 def recv_batches(client_sock, store_bets_lock, shutdown_flag):
     while not shutdown_flag.is_set():
-        try:
-            size_data = recv_all(client_sock, LENGTH_BYTES)
-            data_size = int.from_bytes(size_data, byteorder='big')
-        
-            if not data_size:
+            size_data = recv_all(client_sock, LENGTH_BYTES, shutdown_flag)
+            if size_data is None or len(size_data) == 0:
                 break
             
-            bet_data = recv_all(client_sock, data_size).decode('utf-8')
+            data_size = int.from_bytes(size_data, byteorder='big')
+            if data_size == 0:
+                break
+
+            bet_data = recv_all(client_sock, data_size, shutdown_flag).decode('utf-8')
             parsed_bets = parse_bets(bet_data)
-            
+
             if parsed_bets is None:
                 msg = f'action: apuesta_recibida | result: fail | cantidad: {len(bet_data.strip().splitlines())}'
                 logging.error(msg)
                 client_sock.send((msg + '\n').encode('utf-8'))
             else:
                 with store_bets_lock:
-                    store_bets(parsed_bets)    
+                    store_bets(parsed_bets)
                 msg = f'action: apuesta_recibida  | result: success | cantidad: {len(parsed_bets)}'
                 logging.info(msg)
-                client_sock.send((msg + '\n').encode('utf-8'))
-        
-        except OSError as e:
-            break
-
-        
-# Receives data in batches from the client socket, processes and stores it
-# def recv_batches(client_sock, store_bets_lock):
-#     while True:
-#         size_data = recv_all(client_sock, LENGTH_BYTES)
-#         data_size = int.from_bytes(size_data, byteorder='big')
-    
-#         if not data_size:
-#             break
-        
-#         bet_data = recv_all(client_sock, data_size).decode('utf-8')
-#         parsed_bets = parse_bets(bet_data)
-        
-#         if parsed_bets is None:
-#             msg = f'action: apuesta_recibida | result: fail | cantidad: {len(bet_data.strip().splitlines())}'
-#             logging.error(msg)
-#             client_sock.send((msg + '\n').encode('utf-8'))
-#         else:
-#             with store_bets_lock:
-#                 store_bets(parsed_bets)    
-#             msg = f'action: apuesta_recibida  | result: success | cantidad: {len(parsed_bets)}'
-#             logging.info(msg)
-#             client_sock.send((msg + '\n').encode('utf-8'))
+                client_sock.send((msg + '\n').encode('utf-8'))      
 
 # Parses bet data from a string into a list of Bet objects       
 def parse_bets(bet_data: str) -> Optional[List[Bet]]:
@@ -143,30 +127,4 @@ def parse_bets(bet_data: str) -> Optional[List[Bet]]:
             return None 
     
     return bets
-
-# Receives a single bet from the client socket and stores it                 
-def recv(client_sock):
-    
-    size_data = recv_all(client_sock, LENGTH_BYTES)
-    data_size = int.from_bytes(size_data, byteorder='big')
-    bet_data = recv_all(client_sock, data_size).decode('utf-8')
-    
-    bet_parts = bet_data.split('|')
-    
-    bet = Bet(
-        agency=bet_parts[0],
-        first_name=bet_parts[1],
-        last_name=bet_parts[2],
-        document=bet_parts[3],
-        birthdate=bet_parts[4],
-        number=bet_parts[5]
-    )
-    
-    store_bets([bet])
-
-    msg = f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}'
-    logging.info(msg)
-    
-    client_sock.send((msg + '\n').encode('utf-8'))
-
 

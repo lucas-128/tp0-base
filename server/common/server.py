@@ -91,13 +91,11 @@ class Server:
         try:
             addr = client_sock.getpeername()
             while not self._shutdown_flag.is_set():  
-                
                 # Receive the introduction message to determine the type of request
-                msg_type = recv_intro_msg(client_sock)
-                
+                msg_type = recv_intro_msg(client_sock,self._shutdown_flag)
                 if msg_type == MESSAGE_TYPE_BETDATA:
                     # Process bet data received from the client
-                    recv_batches(client_sock, self._store_bets_lock)
+                    recv_batches(client_sock, self._store_bets_lock,self._shutdown_flag)
                     self.increment_handled_agencies()
                     
                     # Check if the number of handled agencies matches the expected number
@@ -106,15 +104,15 @@ class Server:
                         
                 elif msg_type == MESSAGE_TYPE_REQWIN:
                 # Handle a winner request and break the loop if successful
-                    if handle_winner_request(client_sock, self.get_handled_agencies(), self):
+                    if handle_winner_request(client_sock, self.get_handled_agencies(), self,self._shutdown_flag):
                         break
                 else:
                     logging.info(f'Unknown message received')
         except OSError as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            if not self._shutdown_flag.is_set():
+                logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
-            logging.info(f'action: close_client_socket | result: success | ip: {addr[0]}')
 
     def __accept_new_connection(self):
         logging.info('action: accept_connections | result: in_progress')
