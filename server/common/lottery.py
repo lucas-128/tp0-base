@@ -47,21 +47,20 @@ def handle_winner_request(client_sock, handled_agencies, server):
         winners_docs = get_winners(agency_id,server)
         send_message_len(client_sock, winners_docs)
         return True
-        
+  
 # Retrieves the list of winners for a given agency ID
 def get_winners(agency_id, server):
-    with server._winners_lock:
-        bets = load_bets()
+    with server._winners_array_lock:
+        if not server._winners:
+            bets = load_bets()
+            for bet in bets:
+                if has_won(bet):
+                    server._winners.append((bet.document, bet.agency))
 
-    winners = []
-    for bet in bets:
-        if has_won(bet) and bet.agency == int(agency_id):
-            winners.append(bet)
-
-    documents = [bet.document for bet in winners]
-    result = ','.join(documents)
-    return result
-
+        winners_for_agency = [doc for doc, agency in server._winners if agency == int(agency_id)]
+        result = ','.join(winners_for_agency)
+        return result 
+        
 # Sends all data to the given connection                   
 def send_all(conn: socket.socket, data: bytes):
     total_sent = 0

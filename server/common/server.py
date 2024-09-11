@@ -21,9 +21,10 @@ class Server:
         
         # Lock to synchronize access to storing bets
         self._store_bets_lock = threading.Lock()
-        
-        # Lock to synchronize access to loading bets
-        self._winners_lock = threading.Lock()
+                
+        # Lock to synchronize access to the winners array
+        self._winners_array_lock = threading.Lock()       
+        self._winners = []  # List of tuples (winner_document: str, agency_id: str or int)
         
         # Thread pool executor to handle concurrent tasks
         self._executor = ThreadPoolExecutor(max_workers=NUM_AGENCIES)
@@ -45,20 +46,6 @@ class Server:
         """
         with self._handled_agencies_lock:
             return self._handled_agencies
-        
-    def store_winners(self, winners):
-        """
-        Stores the list of winners in a thread-safe manner.
-        """
-        with self._winners_lock:
-            self._winners = winners
-
-    def get_winners_stored(self):
-        """
-        Retrieves the list of stored winners in a thread-safe manner.    
-        """
-        with self._winners_lock:
-            return self._winners
 
     def __handle_shutdown_signal(self, signum, frame):
         """
