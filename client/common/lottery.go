@@ -261,6 +261,12 @@ func handleWinnerData(conn net.Conn) {
 	// Read the size of the winner data from the buffer
 	binary.Read(bytes.NewReader(lengthBytes), binary.BigEndian, &dataSize)
 
+	if int(dataSize) == 0 {
+		logMessage := ("action: consulta_ganadores | result: success | cant_ganadores: 0")
+		log.Infof("%v", logMessage)
+		return
+	}
+
 	// Receive the actual winner data
 	dataBytes, _ := recvAll(conn, int(dataSize))
 
